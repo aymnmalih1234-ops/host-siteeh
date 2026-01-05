@@ -44,8 +44,6 @@
     
     .btn-act { width: 100%; padding: 14px; margin-bottom: 10px; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; color: white; }
     
-    .install-btn { background: var(--success); color: black; font-weight: bold; }
-    
     .upload-area { border: 2px dashed var(--accent); border-radius: 10px; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; background: rgba(0,212,255,0.05); position: relative; }
     
     .upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
@@ -87,7 +85,6 @@
     <div class="mgr-grid">
       <div class="console-box" id="consoleLog">Console ready...\n</div>
       <div>
-        <button class="btn-act install-btn" id="installBtn" onclick="event.stopPropagation(); installLibraries()">📦 Install Libraries</button>
         <button class="btn-act" style="background:var(--gradient)" onclick="event.stopPropagation(); runBot()">▶️ Run bot.py</button>
         <button class="btn-act" style="background:var(--error)" onclick="event.stopPropagation(); stopBot()">⏹️ Stop Bot</button>
       </div>
@@ -95,21 +92,21 @@
 
     <div class="upload-area" id="uploadArea">
       <div style="font-size:48px;margin-bottom:15px;color:var(--accent)">🚀</div>
-      <div style="color:var(--muted)">ارفع bot.py أو requirements.txt</div>
-      <input type="file" id="fileInput" multiple>
+      <div style="color:var(--muted)">ارفع bot.py (مطلوب)</div>
+      <input type="file" id="fileInput">
     </div>
 
     <table>
-      <thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Size</th></tr></thead>
       <tbody id="fileList"></tbody>
     </table>
   </main>
 
   <script>
     const userKey = "ayyy1234";
-    let files = JSON.parse(localStorage.getItem(`files_${userKey}`) || '[]');
     let botContent = localStorage.getItem(`bot_py_content_${userKey}`) || '';
     let installed = JSON.parse(localStorage.getItem(`installed_${userKey}`) || 'false');
+    let files = JSON.parse(localStorage.getItem(`files_${userKey}`) || '[]');
     let runInterval = null;
 
     const libraries = [
@@ -130,11 +127,6 @@
       document.getElementById('serverView').style.display = 'block';
       loadFiles();
       addConsoleLine("تم الدخول إلى السيرفر");
-      
-      if (installed) {
-        document.getElementById('installBtn').textContent = "المكتبات مثبتة ✅";
-        document.getElementById('installBtn').disabled = true;
-      }
     }
 
     function goHome() {
@@ -146,102 +138,72 @@
       const list = document.getElementById('fileList');
       list.innerHTML = '';
       files.forEach(file => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td style="color:var(--accent)">${file.name}</td>
-          <td>${file.size}</td>
-          <td>
-            <button class="f-btn" onclick="event.stopPropagation(); alert('تحرير ${file.name}')">✏️ Edit</button>
-            <button class="f-btn" style="background:var(--error)" onclick="event.stopPropagation(); deleteFile('${file.name}')">🗑️ Delete</button>
-          </td>
-        `;
-        list.appendChild(row);
+        list.innerHTML += `<tr><td style="color:var(--accent)">\( {file.name}</td><td> \){file.size}</td></tr>`;
       });
-    }
-
-    function deleteFile(name) {
-      files = files.filter(f => f.name !== name);
-      if (name === 'bot.py') botContent = '';
-      localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
-      loadFiles();
     }
 
     document.getElementById('fileInput').onchange = function(e) {
-      const uploaded = e.target.files;
-      if (uploaded.length === 0) return;
+      const file = e.target.files[0];
+      if (!file) return;
       
-      Array.from(uploaded).forEach(file => {
-        const fileData = { name: file.name, size: (file.size / 1024).toFixed(1) + ' KB' };
-        if (!files.some(f => f.name === file.name)) {
-          files.push(fileData);
-          addConsoleLine(`تم رفع: ${file.name}`);
-        }
-        
-        if (file.name === 'bot.py') {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            botContent = e.target.result;
-            localStorage.setItem(`bot_py_content_${userKey}`, botContent);
-            addConsoleLine("تم تحميل محتوى bot.py");
-          };
-          reader.readAsText(file);
-        }
-      });
-      
-      localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
-      loadFiles();
-    };
-
-    function installLibraries() {
-      if (installed) {
-        addConsoleLine("المكتبات مثبتة بالفعل");
+      if (file.name !== 'bot.py') {
+        addConsoleLine("تحذير: يرجى رفع bot.py فقط");
         return;
       }
       
-      const btn = document.getElementById('installBtn');
-      btn.disabled = true;
-      
-      let i = 0;
-      const installInterval = setInterval(() => {
-        if (i < libraries.length) {
-          const lib = libraries[i];
-          addConsoleLine(`Collecting ${lib.name}`);
-          setTimeout(() => {
-            addConsoleLine(`  Downloading \( {lib.name}- \){lib.version}-py3-none-any.whl (${lib.size})`);
-            setTimeout(() => {
-              addConsoleLine(`  Installing collected packages: ${lib.name}`);
-              setTimeout(() => {
-                addConsoleLine(`  Successfully installed \( {lib.name}- \){lib.version}`);
-              }, 800);
-            }, 600);
-          }, 400);
-          i++;
-        } else {
-          clearInterval(installInterval);
-          addConsoleLine("تم تثبيت جميع المكتبات بنجاح!");
-          installed = true;
-          localStorage.setItem(`installed_${userKey}`, 'true');
-          btn.textContent = "تم التثبيت ✅";
-          runBot(); // تشغيل تلقائي بعد التثبيت
-        }
-      }, 2000);
-    }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        botContent = e.target.result;
+        localStorage.setItem(`bot_py_content_${userKey}`, botContent);
+        files = [{ name: 'bot.py', size: (file.size / 1024).toFixed(1) + ' KB' }];
+        localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
+        loadFiles();
+        addConsoleLine("تم رفع bot.py بنجاح");
+      };
+      reader.readAsText(file);
+    };
 
     function runBot() {
       if (!botContent) {
-        addConsoleLine("خطأ: bot.py غير موجود");
+        addConsoleLine("خطأ: bot.py غير موجود، ارفعه أولاً");
         return;
       }
       
       addConsoleLine("python bot.py");
       
+      if (!installed) {
+        addConsoleLine("جاري تثبيت المكتبات المطلوبة...");
+        
+        let i = 0;
+        const installInterval = setInterval(() => {
+          if (i < libraries.length) {
+            const lib = libraries[i];
+            addConsoleLine(`Collecting ${lib.name}`);
+            addConsoleLine(`  Downloading \( {lib.name}- \){lib.version}-py3-none-any.whl (${lib.size})`);
+            addConsoleLine(`  Installing collected packages: ${lib.name}`);
+            addConsoleLine(`  Successfully installed \( {lib.name}- \){lib.version}`);
+            i++;
+          } else {
+            clearInterval(installInterval);
+            installed = true;
+            localStorage.setItem(`installed_${userKey}`, 'true');
+            addConsoleLine("تم تثبيت المكتبات بنجاح!");
+            executeBotCode();
+          }
+        }, 1500);
+      } else {
+        executeBotCode();
+      }
+    }
+
+    function executeBotCode() {
       const lines = botContent.split('\n');
       let i = 0;
       runInterval = setInterval(() => {
         if (i < lines.length) {
           const line = lines[i].trim();
-          if (line.startsWith('print') || line.includes('print(')) {
-            const msg = line.replace(/print\(['"]?/, '').replace(/['"]?\)/, '').trim();
+          if (line && (line.startsWith('print') || line.includes('print('))) {
+            const msg = line.replace(/print\((.*)\)/, '$1').replace(/["']/g, '').trim();
             addConsoleLine(msg);
           }
           i++;
@@ -249,7 +211,7 @@
           clearInterval(runInterval);
           addConsoleLine("البوت يعمل في الخلفية...");
         }
-      }, 500);
+      }, 600);
     }
 
     function stopBot() {
