@@ -109,12 +109,19 @@
     const userKey = "ayyy1234";
     let files = JSON.parse(localStorage.getItem(`files_${userKey}`) || '[]');
     let botContent = localStorage.getItem(`bot_py_content_${userKey}`) || '';
-    let libraries = ["pyTelegramBotAPI", "requests", "httpx", "groq"];
     let installed = JSON.parse(localStorage.getItem(`installed_${userKey}`) || 'false');
+    let runInterval = null;
+
+    const libraries = [
+      { name: "pyTelegramBotAPI", version: "4.14.0", size: "223 kB" },
+      { name: "requests", version: "2.31.0", size: "97 kB" },
+      { name: "httpx", version: "0.27.0", size: "105 kB" },
+      { name: "groq", version: "0.4.1", size: "45 kB" }
+    ];
 
     function addConsoleLine(line) {
       const log = document.getElementById('consoleLog');
-      log.textContent += `[${new Date().toLocaleTimeString()}] ${line}\n`;
+      log.textContent += line + '\n';
       log.scrollTop = log.scrollHeight;
     }
 
@@ -175,7 +182,7 @@
           reader.onload = function(e) {
             botContent = e.target.result;
             localStorage.setItem(`bot_py_content_${userKey}`, botContent);
-            addConsoleLine("تم قراءة bot.py");
+            addConsoleLine("تم تحميل محتوى bot.py");
           };
           reader.readAsText(file);
         }
@@ -194,58 +201,60 @@
       const btn = document.getElementById('installBtn');
       btn.disabled = true;
       
-      addConsoleLine("بدء تثبيت المكتبات...");
-      
       let i = 0;
       const installInterval = setInterval(() => {
         if (i < libraries.length) {
-          addConsoleLine(`Collecting ${libraries[i]}...`);
+          const lib = libraries[i];
+          addConsoleLine(`Collecting ${lib.name}`);
           setTimeout(() => {
-            addConsoleLine(`Installing ${libraries[i]}...`);
+            addConsoleLine(`  Downloading \( {lib.name}- \){lib.version}-py3-none-any.whl (${lib.size})`);
             setTimeout(() => {
-              addConsoleLine(`Successfully installed ${libraries[i]}`);
+              addConsoleLine(`  Installing collected packages: ${lib.name}`);
+              setTimeout(() => {
+                addConsoleLine(`  Successfully installed \( {lib.name}- \){lib.version}`);
+              }, 800);
             }, 600);
           }, 400);
           i++;
         } else {
           clearInterval(installInterval);
-          addConsoleLine("✅ تم تثبيت جميع المكتبات بنجاح!");
+          addConsoleLine("تم تثبيت جميع المكتبات بنجاح!");
           installed = true;
           localStorage.setItem(`installed_${userKey}`, 'true');
-          btn.textContent = "المكتبات مثبتة ✅";
+          btn.textContent = "تم التثبيت ✅";
+          runBot(); // تشغيل تلقائي بعد التثبيت
         }
-      }, 1500);
+      }, 2000);
     }
 
     function runBot() {
       if (!botContent) {
-        addConsoleLine("خطأ: ارفع bot.py أولاً");
+        addConsoleLine("خطأ: bot.py غير موجود");
         return;
       }
       
-      addConsoleLine("تشغيل bot.py...");
+      addConsoleLine("python bot.py");
       
       const lines = botContent.split('\n');
       let i = 0;
-      const runInterval = setInterval(() => {
+      runInterval = setInterval(() => {
         if (i < lines.length) {
           const line = lines[i].trim();
-          if (line && line.includes('print')) {
-            const msg = line.replace(/.*print\(["']?/, '').replace(/["']?\).*/, '');
+          if (line.startsWith('print') || line.includes('print(')) {
+            const msg = line.replace(/print\(['"]?/, '').replace(/['"]?\)/, '').trim();
             addConsoleLine(msg);
           }
           i++;
         } else {
           clearInterval(runInterval);
-          addConsoleLine("البوت شغال وينتظر الرسائل...");
-          setInterval(() => addConsoleLine("Bot is alive - " + new Date().toLocaleTimeString()), 10000);
+          addConsoleLine("البوت يعمل في الخلفية...");
         }
       }, 500);
     }
 
     function stopBot() {
+      clearInterval(runInterval);
       addConsoleLine("تم إيقاف bot.py");
-      location.reload(); // ريستارت بسيط
     }
 
     document.addEventListener('DOMContentLoaded', () => {
