@@ -45,6 +45,7 @@
     .btn-act { width: 100%; padding: 14px; margin-bottom: 10px; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; color: white; }
     
     .install-btn { background: var(--success); color: black; font-weight: bold; }
+    .running { background: white !important; color: black !important; opacity: 0.6; }
     
     .upload-area { border: 2px dashed var(--accent); border-radius: 10px; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; background: rgba(0,212,255,0.05); position: relative; }
     
@@ -55,9 +56,6 @@
     td { padding: 15px 10px; border-bottom: 1px solid rgba(0,212,255,0.1); }
     
     .f-btn { padding: 5px 10px; border-radius: 5px; border: 0; font-size: 11px; cursor: pointer; margin-right: 5px; background: rgba(43,49,58,0.8); color: white; }
-    
-    /* مهم: منع فتح نافذة الرفع عند الضغط على أزرار الجدول */
-    table button { pointer-events: auto; }
   </style>
 </head>
 <body>
@@ -90,15 +88,15 @@
     <div class="mgr-grid">
       <div class="console-box" id="consoleLog">Console ready...\n</div>
       <div>
-        <button class="btn-act install-btn" id="installBtn" onclick="event.stopPropagation(); installAndRun()" style="display:none">📦 Install Requirements & Run Bot</button>
-        <button class="btn-act" style="background:var(--gradient)" onclick="event.stopPropagation(); addConsoleLine('/start command received\nStarting bot...')">/start</button>
-        <button class="btn-act" style="background:var(--error)" onclick="event.stopPropagation(); addConsoleLine('Bot stopped')">Stop Bot</button>
+        <button class="btn-act install-btn" id="installBtn" onclick="event.stopPropagation(); installAndRun()">📦 Install & Run Bot</button>
+        <button class="btn-act" id="startBtn" style="background:var(--gradient)" onclick="event.stopPropagation(); startBot()">▶️ Start Bot</button>
+        <button class="btn-act" id="stopBtn" style="background:var(--error)" onclick="event.stopPropagation(); stopBot()">⏹️ Stop Bot</button>
       </div>
     </div>
 
     <div class="upload-area" id="uploadArea">
       <div style="font-size:48px;margin-bottom:15px;color:var(--accent)">🚀</div>
-      <div style="color:var(--muted)">اسحب bot.py أو requirements.txt هنا أو اضغط للرفع</div>
+      <div style="color:var(--muted)">ارفع bot.py أو requirements.txt</div>
       <input type="file" id="fileInput" multiple>
     </div>
 
@@ -109,19 +107,35 @@
   </main>
 
   <script>
-    let files = JSON.parse(localStorage.getItem('user_files') || '[]');
+    const userKey = "ayyy1234"; // اسم المستخدم (من اللوجن)
+    let botState = JSON.parse(localStorage.getItem(`bot_state_${userKey}`) || '{"running": false}');
+    let files = JSON.parse(localStorage.getItem(`files_${userKey}`) || '[]');
+    let logInterval = null;
 
     function addConsoleLine(line) {
-      const console = document.getElementById('consoleLog');
-      console.textContent += `[${new Date().toLocaleTimeString()}] ${line}\n`;
-      console.scrollTop = console.scrollHeight;
+      const consoleLog = document.getElementById('consoleLog');
+      consoleLog.textContent += `[${new Date().toLocaleTimeString()}] ${line}\n`;
+      consoleLog.scrollTop = consoleLog.scrollHeight;
     }
 
     function openServer() {
       document.getElementById('homeView').style.display = 'none';
       document.getElementById('serverView').style.display = 'block';
       loadFiles();
-      addConsoleLine("تم الدخول إلى سيرفر البوت");
+      addConsoleLine("تم الدخول إلى السيرفر");
+      
+      // استعادة حالة البوت
+      if (botState.running) {
+        startBotLog();
+        document.getElementById('startBtn').classList.add('running');
+        document.getElementById('stopBtn').classList.remove('running');
+      } else {
+        document.getElementById('startBtn').classList.remove('running');
+      }
+      
+      if (files.some(f => f.name === 'requirements.txt')) {
+        document.getElementById('installBtn').style.display = 'block';
+      }
     }
 
     function goHome() {
@@ -140,20 +154,15 @@
           <td>
             <button class="f-btn" onclick="event.stopPropagation(); alert('تحرير ${file.name}')">✏️ Edit</button>
             <button class="f-btn" style="background:var(--error)" onclick="event.stopPropagation(); deleteFile('${file.name}')">🗑️ Delete</button>
-            ${file.name === 'requirements.txt' ? '<button class="f-btn install-btn" onclick="event.stopPropagation(); installAndRun()">📦 Install & Run</button>' : ''}
           </td>
         `;
         list.appendChild(row);
       });
-      
-      if (files.some(f => f.name === 'requirements.txt')) {
-        document.getElementById('installBtn').style.display = 'block';
-      }
     }
 
     function deleteFile(name) {
       files = files.filter(f => f.name !== name);
-      localStorage.setItem('user_files', JSON.stringify(files));
+      localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
       loadFiles();
     }
 
@@ -165,44 +174,63 @@
         const fileData = { name: file.name, size: (file.size / 1024).toFixed(1) + ' KB' };
         if (!files.some(f => f.name === file.name)) {
           files.push(fileData);
-          addConsoleLine(`تم رفع الملف: ${file.name}`);
+          addConsoleLine(`تم رفع: ${file.name}`);
         }
       });
       
-      localStorage.setItem('user_files', JSON.stringify(files));
+      localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
       loadFiles();
       
       if (Array.from(uploaded).some(f => f.name === 'requirements.txt')) {
         document.getElementById('installBtn').style.display = 'block';
-        addConsoleLine("تم رفع requirements.txt - اضغط Install لتشغيل البوت");
-      }
-      
-      if (Array.from(uploaded).some(f => f.name === 'bot.py')) {
-        addConsoleLine("تم رفع bot.py - جاهز للتشغيل بعد التثبيت");
       }
     };
 
     function installAndRun() {
-      addConsoleLine("بدء تثبيت المكتبات...");
+      addConsoleLine("تثبيت المكتبات من requirements.txt...");
+      addConsoleLine("telebot - تم");
+      addConsoleLine("requests - تم");
+      addConsoleLine("flask - تم");
+      addConsoleLine("pyrogram - تم");
+      addConsoleLine("✅ تم التثبيت بنجاح!");
+      addConsoleLine("تشغيل bot.py...");
+      startBot();
+    }
+
+    function startBot() {
+      if (botState.running) return;
       
-      const libs = ["telebot", "requests", "flask", "pyrogram", "asyncio"];
-      let i = 0;
-      const interval = setInterval(() => {
-        if (i < libs.length) {
-          addConsoleLine(`pip install ${libs[i]} - done`);
-          i++;
-        } else {
-          clearInterval(interval);
-          addConsoleLine("✅ تم التثبيت بنجاح!");
-          addConsoleLine("جاري تشغيل bot.py...");
-          setTimeout(() => {
-            addConsoleLine("/start");
-            addConsoleLine("البوت شغال الآن ✅");
-            addConsoleLine("Bot is running on port 3000");
-            addConsoleLine("Listening for messages...");
-          }, 1000);
+      botState.running = true;
+      localStorage.setItem(`bot_state_${userKey}`, JSON.stringify(botState));
+      
+      addConsoleLine("/start");
+      addConsoleLine("البوت شغال الآن ✅");
+      addConsoleLine("Listening for updates...");
+      
+      startBotLog();
+      
+      document.getElementById('startBtn').classList.add('running');
+    }
+
+    function stopBot() {
+      if (!botState.running) return;
+      
+      botState.running = false;
+      localStorage.setItem(`bot_state_${userKey}`, JSON.stringify(botState));
+      
+      addConsoleLine("تم إيقاف البوت");
+      clearInterval(logInterval);
+      
+      document.getElementById('startBtn').classList.remove('running');
+    }
+
+    function startBotLog() {
+      clearInterval(logInterval);
+      logInterval = setInterval(() => {
+        if (botState.running) {
+          addConsoleLine("Bot is alive - " + new Date().toLocaleTimeString());
         }
-      }, 600);
+      }, 5000);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
