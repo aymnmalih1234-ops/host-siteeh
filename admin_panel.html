@@ -87,7 +87,8 @@
     <div class="mgr-grid">
       <div class="console-box" id="consoleLog">Console ready...\n</div>
       <div>
-        <button class="btn-act install-btn" id="installBtn" onclick="event.stopPropagation(); installAndRun()">📦 Install & Run Bot</button>
+        <button class="btn-act install-btn" id="installBtn" onclick="event.stopPropagation(); installLibraries()">📦 Install Libraries</button>
+        <button class="btn-act" style="background:var(--gradient)" onclick="event.stopPropagation(); runBot()">▶️ Run bot.py</button>
         <button class="btn-act" style="background:var(--error)" onclick="event.stopPropagation(); stopBot()">⏹️ Stop Bot</button>
       </div>
     </div>
@@ -108,9 +109,8 @@
     const userKey = "ayyy1234";
     let files = JSON.parse(localStorage.getItem(`files_${userKey}`) || '[]');
     let botContent = localStorage.getItem(`bot_py_content_${userKey}`) || '';
-    let botRunning = false;
-    let lineIndex = 0;
-    let runInterval = null;
+    let libraries = ["pyTelegramBotAPI", "requests", "httpx", "groq"];
+    let installed = JSON.parse(localStorage.getItem(`installed_${userKey}`) || 'false');
 
     function addConsoleLine(line) {
       const log = document.getElementById('consoleLog');
@@ -124,13 +124,9 @@
       loadFiles();
       addConsoleLine("تم الدخول إلى السيرفر");
       
-      if (files.some(f => f.name === 'requirements.txt')) {
-        document.getElementById('installBtn').style.display = 'block';
-      }
-      
-      if (botRunning && botContent) {
-        addConsoleLine("البوت شغال سابقًا - استئناف التشغيل");
-        runBotCode();
+      if (installed) {
+        document.getElementById('installBtn').textContent = "المكتبات مثبتة ✅";
+        document.getElementById('installBtn').disabled = true;
       }
     }
 
@@ -148,7 +144,7 @@
           <td style="color:var(--accent)">${file.name}</td>
           <td>${file.size}</td>
           <td>
-            <button class="f-btn" onclick="event.stopPropagation(); editFile('${file.name}')">✏️ Edit</button>
+            <button class="f-btn" onclick="event.stopPropagation(); alert('تحرير ${file.name}')">✏️ Edit</button>
             <button class="f-btn" style="background:var(--error)" onclick="event.stopPropagation(); deleteFile('${file.name}')">🗑️ Delete</button>
           </td>
         `;
@@ -158,32 +154,15 @@
 
     function deleteFile(name) {
       files = files.filter(f => f.name !== name);
-      if (name === 'bot.py') {
-        botContent = '';
-        localStorage.removeItem(`bot_py_content_${userKey}`);
-      }
+      if (name === 'bot.py') botContent = '';
       localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
       loadFiles();
-    }
-
-    function editFile(name) {
-      if (name === 'bot.py') {
-        const newContent = prompt("عدل محتوى bot.py:", botContent || '# اكتب كود البوت هنا\nprint(\"البوت شغال!\")');
-        if (newContent !== null) {
-          botContent = newContent;
-          localStorage.setItem(`bot_py_content_${userKey}`, botContent);
-          addConsoleLine("تم حفظ bot.py");
-        }
-      } else {
-        alert("تحرير " + name);
-      }
     }
 
     document.getElementById('fileInput').onchange = function(e) {
       const uploaded = e.target.files;
       if (uploaded.length === 0) return;
       
-      const reader = new FileReader();
       Array.from(uploaded).forEach(file => {
         const fileData = { name: file.name, size: (file.size / 1024).toFixed(1) + ' KB' };
         if (!files.some(f => f.name === file.name)) {
@@ -192,10 +171,11 @@
         }
         
         if (file.name === 'bot.py') {
+          const reader = new FileReader();
           reader.onload = function(e) {
             botContent = e.target.result;
             localStorage.setItem(`bot_py_content_${userKey}`, botContent);
-            addConsoleLine("تم قراءة محتوى bot.py");
+            addConsoleLine("تم قراءة bot.py");
           };
           reader.readAsText(file);
         }
@@ -203,59 +183,69 @@
       
       localStorage.setItem(`files_${userKey}`, JSON.stringify(files));
       loadFiles();
-      
-      if (Array.from(uploaded).some(f => f.name === 'requirements.txt')) {
-        document.getElementById('installBtn').style.display = 'block';
-      }
     };
 
-    function installAndRun() {
+    function installLibraries() {
+      if (installed) {
+        addConsoleLine("المكتبات مثبتة بالفعل");
+        return;
+      }
+      
+      const btn = document.getElementById('installBtn');
+      btn.disabled = true;
+      
+      addConsoleLine("بدء تثبيت المكتبات...");
+      
+      let i = 0;
+      const installInterval = setInterval(() => {
+        if (i < libraries.length) {
+          addConsoleLine(`Collecting ${libraries[i]}...`);
+          setTimeout(() => {
+            addConsoleLine(`Installing ${libraries[i]}...`);
+            setTimeout(() => {
+              addConsoleLine(`Successfully installed ${libraries[i]}`);
+            }, 600);
+          }, 400);
+          i++;
+        } else {
+          clearInterval(installInterval);
+          addConsoleLine("✅ تم تثبيت جميع المكتبات بنجاح!");
+          installed = true;
+          localStorage.setItem(`installed_${userKey}`, 'true');
+          btn.textContent = "المكتبات مثبتة ✅";
+        }
+      }, 1500);
+    }
+
+    function runBot() {
       if (!botContent) {
         addConsoleLine("خطأ: ارفع bot.py أولاً");
         return;
       }
       
-      addConsoleLine("تثبيت المكتبات...");
-      addConsoleLine("telebot - تم");
-      addConsoleLine("requests - تم");
-      addConsoleLine("pyrogram - تم");
-      addConsoleLine("✅ تم التثبيت");
-      
       addConsoleLine("تشغيل bot.py...");
-      runBotCode();
-    }
-
-    function runBotCode() {
-      if (botRunning) return;
-      botRunning = true;
       
       const lines = botContent.split('\n');
-      lineIndex = 0;
-      
-      addConsoleLine("Starting bot.py...");
-      
-      runInterval = setInterval(() => {
-        if (lineIndex < lines.length) {
-          const line = lines[lineIndex].trim();
-          if (line.startsWith('print(') || line.includes('print')) {
-            const msg = line.replace(/print\(/, '').replace('print', '').replace(/\)/, '').replace(/"/g, '').replace(/'/g, '');
-            addConsoleLine(msg || "رسالة من البوت");
+      let i = 0;
+      const runInterval = setInterval(() => {
+        if (i < lines.length) {
+          const line = lines[i].trim();
+          if (line && line.includes('print')) {
+            const msg = line.replace(/.*print\(["']?/, '').replace(/["']?\).*/, '');
+            addConsoleLine(msg);
           }
-          lineIndex++;
+          i++;
         } else {
-          addConsoleLine("البوت شغال وينتظر الرسائل...");
           clearInterval(runInterval);
-          // رسائل دورية
-          setInterval(() => addConsoleLine("Bot is alive"), 10000);
+          addConsoleLine("البوت شغال وينتظر الرسائل...");
+          setInterval(() => addConsoleLine("Bot is alive - " + new Date().toLocaleTimeString()), 10000);
         }
       }, 500);
     }
 
     function stopBot() {
-      if (!botRunning) return;
-      botRunning = false;
-      clearInterval(runInterval);
       addConsoleLine("تم إيقاف bot.py");
+      location.reload(); // ريستارت بسيط
     }
 
     document.addEventListener('DOMContentLoaded', () => {
