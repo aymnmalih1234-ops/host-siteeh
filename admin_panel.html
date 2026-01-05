@@ -46,13 +46,18 @@
     
     .install-btn { background: var(--success); color: black; font-weight: bold; }
     
-    .upload-area { border: 2px dashed var(--accent); border-radius: 10px; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; background: rgba(0,212,255,0.05); }
+    .upload-area { border: 2px dashed var(--accent); border-radius: 10px; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; background: rgba(0,212,255,0.05); position: relative; }
+    
+    .upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
     
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th { background: rgba(0,212,255,0.1); padding: 12px 10px; color: var(--accent); }
     td { padding: 15px 10px; border-bottom: 1px solid rgba(0,212,255,0.1); }
     
     .f-btn { padding: 5px 10px; border-radius: 5px; border: 0; font-size: 11px; cursor: pointer; margin-right: 5px; background: rgba(43,49,58,0.8); color: white; }
+    
+    /* مهم: منع فتح نافذة الرفع عند الضغط على أزرار الجدول */
+    table button { pointer-events: auto; }
   </style>
 </head>
 <body>
@@ -62,7 +67,7 @@
       <div class="panel-logo">HAMA HOST PANEL</div>
     </div>
     <div style="display:flex;align-items:center;gap:15px">
-      <span>Welcome, <span id="currentUser">ayyy1234</span></span>
+      <span>Welcome, ayyy1234</span>
       <button class="logout-btn" onclick="window.location.href='index.html'">تسجيل الخروج</button>
     </div>
   </header>
@@ -85,16 +90,16 @@
     <div class="mgr-grid">
       <div class="console-box" id="consoleLog">Console ready...\n</div>
       <div>
-        <button class="btn-act install-btn" id="installBtn" onclick="installAndRun()" style="display:none">📦 Install & Run Bot</button>
-        <button class="btn-act" style="background:var(--gradient)" onclick="addConsoleLine('/start command received')">/start</button>
-        <button class="btn-act" style="background:var(--error)" onclick="addConsoleLine('Bot stopped')">Stop Bot</button>
+        <button class="btn-act install-btn" id="installBtn" onclick="event.stopPropagation(); installAndRun()" style="display:none">📦 Install Requirements & Run Bot</button>
+        <button class="btn-act" style="background:var(--gradient)" onclick="event.stopPropagation(); addConsoleLine('/start command received\nStarting bot...')">/start</button>
+        <button class="btn-act" style="background:var(--error)" onclick="event.stopPropagation(); addConsoleLine('Bot stopped')">Stop Bot</button>
       </div>
     </div>
 
     <div class="upload-area" id="uploadArea">
       <div style="font-size:48px;margin-bottom:15px;color:var(--accent)">🚀</div>
-      <div style="color:var(--muted)">ارفع bot.py أو requirements.txt هنا</div>
-      <input type="file" id="fileInput" multiple style="position:absolute;inset:0;opacity:0;cursor:pointer">
+      <div style="color:var(--muted)">اسحب bot.py أو requirements.txt هنا أو اضغط للرفع</div>
+      <input type="file" id="fileInput" multiple>
     </div>
 
     <table>
@@ -104,9 +109,7 @@
   </main>
 
   <script>
-    const currentUser = "ayyy1234"; // من اللوجن (يمكن يتغير لو حسابات متعددة)
-    let files = JSON.parse(localStorage.getItem(`files_${currentUser}`) || '[]');
-    let isRunning = false;
+    let files = JSON.parse(localStorage.getItem('user_files') || '[]');
 
     function addConsoleLine(line) {
       const console = document.getElementById('consoleLog');
@@ -134,13 +137,15 @@
         row.innerHTML = `
           <td style="color:var(--accent)">${file.name}</td>
           <td>${file.size}</td>
-          <td><button class="f-btn" onclick="alert('تحرير ${file.name}')">✏️ Edit</button>
-          <button class="f-btn" style="background:var(--error)" onclick="deleteFile('${file.name}')">🗑️ Delete</button></td>
+          <td>
+            <button class="f-btn" onclick="event.stopPropagation(); alert('تحرير ${file.name}')">✏️ Edit</button>
+            <button class="f-btn" style="background:var(--error)" onclick="event.stopPropagation(); deleteFile('${file.name}')">🗑️ Delete</button>
+            ${file.name === 'requirements.txt' ? '<button class="f-btn install-btn" onclick="event.stopPropagation(); installAndRun()">📦 Install & Run</button>' : ''}
+          </td>
         `;
         list.appendChild(row);
       });
       
-      // إظهار زر Install لو في requirements.txt
       if (files.some(f => f.name === 'requirements.txt')) {
         document.getElementById('installBtn').style.display = 'block';
       }
@@ -148,12 +153,8 @@
 
     function deleteFile(name) {
       files = files.filter(f => f.name !== name);
-      saveFiles();
+      localStorage.setItem('user_files', JSON.stringify(files));
       loadFiles();
-    }
-
-    function saveFiles() {
-      localStorage.setItem(`files_${currentUser}`, JSON.stringify(files));
     }
 
     document.getElementById('fileInput').onchange = function(e) {
@@ -168,52 +169,43 @@
         }
       });
       
-      saveFiles();
+      localStorage.setItem('user_files', JSON.stringify(files));
       loadFiles();
       
-      // لو رفع requirements.txt → أظهر زر Install
       if (Array.from(uploaded).some(f => f.name === 'requirements.txt')) {
         document.getElementById('installBtn').style.display = 'block';
-        addConsoleLine("تم العثور على requirements.txt - يمكنك التثبيت الآن");
+        addConsoleLine("تم رفع requirements.txt - اضغط Install لتشغيل البوت");
       }
       
-      // لو رفع bot.py → اقترح التثبيت
       if (Array.from(uploaded).some(f => f.name === 'bot.py')) {
-        addConsoleLine("تم رفع bot.py - بعد التثبيت سيتم تشغيل البوت");
+        addConsoleLine("تم رفع bot.py - جاهز للتشغيل بعد التثبيت");
       }
     };
 
     function installAndRun() {
-      const btn = document.getElementById('installBtn');
-      btn.disabled = true;
-      btn.textContent = "جاري التثبيت...";
-      
-      addConsoleLine("بدء تثبيت المكتبات من requirements.txt...");
+      addConsoleLine("بدء تثبيت المكتبات...");
       
       const libs = ["telebot", "requests", "flask", "pyrogram", "asyncio"];
       let i = 0;
-      const installInterval = setInterval(() => {
+      const interval = setInterval(() => {
         if (i < libs.length) {
-          addConsoleLine(`pip install ${libs[i]}`);
-          addConsoleLine(`Successfully installed ${libs[i]}`);
+          addConsoleLine(`pip install ${libs[i]} - done`);
           i++;
         } else {
-          clearInterval(installInterval);
-          addConsoleLine("✅ تم تثبيت جميع المكتبات بنجاح!");
+          clearInterval(interval);
+          addConsoleLine("✅ تم التثبيت بنجاح!");
           addConsoleLine("جاري تشغيل bot.py...");
           setTimeout(() => {
             addConsoleLine("/start");
             addConsoleLine("البوت شغال الآن ✅");
-            addConsoleLine("Listening for updates...");
-            addConsoleLine("Bot is running successfully!");
-            btn.textContent = "تم التثبيت والتشغيل ✅";
+            addConsoleLine("Bot is running on port 3000");
+            addConsoleLine("Listening for messages...");
           }, 1000);
         }
-      }, 800);
+      }, 600);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('currentUser').textContent = currentUser;
       loadFiles();
     });
   </script>
